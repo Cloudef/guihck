@@ -41,20 +41,20 @@ int main(int argc, char** argv)
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1);
 
-  if(!glhckContextCreate(argc, argv))
+  if(!glhckInit(argc, argv))
   {
     printf("GLHCK initialization error\n");
     return EXIT_FAILURE;
   }
 
   glhckLogColor(0);
-  if(!glhckDisplayCreate(WIDTH, HEIGHT, GLHCK_RENDER_AUTO))
+  if(!glhckDisplayCreate(WIDTH, HEIGHT, 0))
   {
     printf("GLHCK display create error");
     return EXIT_FAILURE;
   }
 
-  glhckRenderClearColorb(128, 128, 128, 255);
+  glhckRenderClearColoru(128, 128, 128, 255);
 
   guihckInit();
 
@@ -134,7 +134,6 @@ int main(int argc, char** argv)
 
     glhckRenderClear(GLHCK_DEPTH_BUFFER_BIT | GLHCK_COLOR_BUFFER_BIT);
     guihckContextRender(ctx);
-    glhckRender();
     glfwSwapBuffers(window);
   }
 

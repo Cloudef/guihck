@@ -16,7 +16,7 @@ SCM setClearColor(SCM c)
   SCM r = scm_list_ref(c, scm_from_int8(0));
   SCM g = scm_list_ref(c, scm_from_int8(1));
   SCM b = scm_list_ref(c, scm_from_int8(2));
-  glhckRenderClearColorb(scm_to_uint8(r),scm_to_uint8(g), scm_to_uint8(b), 255);
+  glhckRenderClearColoru(scm_to_uint8(r),scm_to_uint8(g), scm_to_uint8(b), 255);
   return SCM_BOOL_T;
 }
 
@@ -37,20 +37,20 @@ int main(int argc, char** argv)
   glfwMakeContextCurrent(window);
   glfwSwapInterval(1);
 
-  if(!glhckContextCreate(argc, argv))
+  if(!glhckInit(argc, argv))
   {
     printf("GLHCK initialization error\n");
     return EXIT_FAILURE;
   }
 
   glhckLogColor(0);
-  if(!glhckDisplayCreate(WIDTH, HEIGHT, GLHCK_RENDER_AUTO))
+  if(!glhckDisplayCreate(WIDTH, HEIGHT, 0))
   {
     printf("GLHCK display create error");
     return EXIT_FAILURE;
   }
 
-  glhckRenderClearColorb(128, 128, 128, 255);
+  glhckRenderClearColoru(128, 128, 128, 255);
 
   guihckInit();
 
@@ -113,7 +113,6 @@ int main(int argc, char** argv)
 
     glhckRenderClear(GLHCK_DEPTH_BUFFER_BIT | GLHCK_COLOR_BUFFER_BIT);
     guihckContextRender(ctx);
-    glhckRender();
     glfwSwapBuffers(window);
   }
 

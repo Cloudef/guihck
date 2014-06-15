@@ -104,17 +104,17 @@ static void renderRectangle(guihckContext* ctx, guihckElementId id, void* data);
 
 typedef struct _guihckGlhckTextContext
 {
-  glhckText* text;
+  glhckHandle text;
   chckHashTable* fonts;
   int textRefs;
 } _guihckGlhckTextContext;
 
-static _GUIHCK_GLHCK_TLS _guihckGlhckTextContext textThreadLocalContext = {NULL, NULL, 0};
+static _GUIHCK_GLHCK_TLS _guihckGlhckTextContext textThreadLocalContext = {0, NULL, 0};
 
 typedef struct _guihckGlhckText
 {
-  unsigned int font;
-  glhckObject* object;
+  glhckFont font;
+  glhckHandle object;
   char* content;
   char* fontPath;
 } _guihckGlhckText;
@@ -127,7 +127,7 @@ static unsigned int getFont(const char* fontPath);
 
 typedef struct _guihckGlhckImage
 {
-  glhckObject* object;
+  glhckHandle object;
   char* source;
 } _guihckGlhckImage;
 
@@ -154,18 +154,18 @@ void guihckGlhckAddRectangleType(guihckContext* ctx)
     NULL,
     NULL
   };
-  guihckElementTypeAdd(ctx, "rectangle", functionMap, sizeof(glhckObject*));
+  guihckElementTypeAdd(ctx, "rectangle", functionMap, sizeof(glhckHandle));
   guihckContextExecuteScript(ctx, GUIHCK_GLHCK_RECTANGLE_SCM);
 }
 
 void initRectangle(guihckContext* ctx, guihckElementId id, void* data)
 {
-  glhckObject* o = glhckPlaneNew(1.0, 1.0);
-  glhckMaterial* m = glhckMaterialNew(NULL);
+  glhckHandle o = glhckPlaneNew(1.0, 1.0);
+  glhckHandle m = glhckMaterialNew(0);
   glhckObjectMaterial(o, m);
-  glhckMaterialFree(m);
+  glhckHandleRelease(m);
 
-  *((glhckObject**) data) = o;
+  memcpy(data, &o, sizeof(glhckHandle));
   guihckElementAddParentPositionListeners(ctx, id);
   guihckElementAddUpdateProperty(ctx, id, "absolute-x");
   guihckElementAddUpdateProperty(ctx, id, "absolute-y");
@@ -179,12 +179,12 @@ void destroyRectangle(guihckContext* ctx, guihckElementId id, void* data)
   (void) ctx;
   (void) id;
 
-  glhckObjectFree(*((glhckObject**) data));
+  glhckHandleRelease(*(glhckHandle*)data);
 }
 
 bool updateRectangle(guihckContext* ctx, guihckElementId id, void* data)
 {
-  glhckObject* o = *((glhckObject**) data);
+  glhckHandle o = *(glhckHandle*)data;
   SCM x = guihckElementGetProperty(ctx, id, "absolute-x");
   SCM y = guihckElementGetProperty(ctx, id, "absolute-y");
   SCM w = guihckElementGetProperty(ctx, id, "width");
@@ -203,16 +203,22 @@ bool updateRectangle(guihckContext* ctx, guihckElementId id, void* data)
 
   if(scm_to_bool(scm_list_p(c)) && scm_to_int32(scm_length(c)) == 3)
   {
-    glhckColorb color = *glhckMaterialGetDiffuse(glhckObjectGetMaterial(o));
+    glhckColor color = glhckMaterialGetDiffuse(glhckObjectGetMaterial(o));
     SCM r = scm_list_ref(c, scm_from_int8(0));
     SCM g = scm_list_ref(c, scm_from_int8(1));
     SCM b = scm_list_ref(c, scm_from_int8(2));
 
-    if(scm_to_bool(scm_integer_p(r))) color.r = scm_to_uint8(r);
-    if(scm_to_bool(scm_integer_p(g))) color.g = scm_to_uint8(g);
-    if(scm_to_bool(scm_integer_p(b))) color.b = scm_to_uint8(b);
+    unsigned char cr = (color & 0xFF000000) >> 24;
+    unsigned char cg = (color & 0x00FF0000) >> 16;
+    unsigned char cb = (color & 0x0000FF00) >> 8;
+    unsigned char ca = (color & 0x000000FF);
 
-    glhckMaterialDiffuse(glhckObjectGetMaterial(o), &color);
+    if(scm_to_bool(scm_integer_p(r))) cr = scm_to_uint8(r);
+    if(scm_to_bool(scm_integer_p(g))) cg = scm_to_uint8(g);
+    if(scm_to_bool(scm_integer_p(b))) cb = scm_to_uint8(b);
+
+    glhckColor newColor = (ca | (cb << 8) | (cg << 16) | (cr << 24));
+    glhckMaterialDiffuse(glhckObjectGetMaterial(o), newColor);
   }
 
   return false;
@@ -223,7 +229,7 @@ void renderRectangle(guihckContext* ctx, guihckElementId id, void* data)
   (void) ctx;
   (void) id;
 
-  glhckObjectRender(*((glhckObject**) data));
+  glhckRenderObject(*(glhckHandle*)data);
 }
 
 
@@ -251,11 +257,11 @@ void initText(guihckContext* ctx, guihckElementId id, void* data)
   textThreadLocalContext.textRefs += 1;
 
   _guihckGlhckText* d = data;
-  d->font = glhckTextFontNewKakwafont(textThreadLocalContext.text, NULL);
+  d->font = getFont("");
   d->object = glhckPlaneNew(1.0, 1.0);
-  glhckMaterial* m = glhckMaterialNew(NULL);
+  glhckHandle m = glhckMaterialNew(0);
   glhckObjectMaterial(d->object, m);
-  glhckMaterialFree(m);
+  glhckHandleRelease(m);
   d->content = NULL;
   d->fontPath = NULL;
   guihckElementAddParentPositionListeners(ctx, id);
@@ -273,7 +279,7 @@ void destroyText(guihckContext* ctx, guihckElementId id, void* data)
   (void) id;
 
   _guihckGlhckText* d = data;
-  glhckObjectFree(d->object);
+  glhckHandleRelease(d->object);
   if(d->content)
     free(d->content);
 
@@ -281,7 +287,7 @@ void destroyText(guihckContext* ctx, guihckElementId id, void* data)
   if(textThreadLocalContext.textRefs == 0)
   {
     chckHashTableIterator fontIter = {NULL, 0};
-    unsigned int* font;
+    glhckFont* font;
     while((font = chckHashTableIter(textThreadLocalContext.fonts, &fontIter)))
     {
       glhckTextFontFree(textThreadLocalContext.text, *font);
@@ -289,8 +295,8 @@ void destroyText(guihckContext* ctx, guihckElementId id, void* data)
     chckHashTableFree(textThreadLocalContext.fonts);
     textThreadLocalContext.fonts = NULL;
 
-    glhckTextFree(textThreadLocalContext.text);
-    textThreadLocalContext.text = NULL;
+    glhckHandleRelease(textThreadLocalContext.text);
+    textThreadLocalContext.text = 0;
   }
 }
 
@@ -326,14 +332,14 @@ bool updateText(guihckContext* ctx, guihckElementId id, void* data)
       if(strlen(textContentStr) > 0)
       {
         float size = scm_is_real(textSize)  ? scm_to_double(textSize) : 12;
-        glhckTexture* texture = glhckTextRTT(textThreadLocalContext.text, d->font, size, textContentStr, glhckTextureDefaultLinearParameters());
+        glhckHandle texture = glhckTextRTT(textThreadLocalContext.text, d->font, size, textContentStr, glhckTextureDefaultLinearParameters());
         glhckMaterialTexture(glhckObjectGetMaterial(d->object), texture);
         if(texture)
-          glhckTextureFree(texture);
+          glhckHandleRelease(texture);
       }
       else
       {
-        glhckMaterialTexture(glhckObjectGetMaterial(d->object), NULL);
+        glhckMaterialTexture(glhckObjectGetMaterial(d->object), 0);
       }
 
       if(d->content)
@@ -348,7 +354,7 @@ bool updateText(guihckContext* ctx, guihckElementId id, void* data)
 
   float w = 0;
   float h = 0;
-  glhckTexture* texture = glhckMaterialGetTexture(glhckObjectGetMaterial(d->object));
+  glhckHandle texture = glhckMaterialGetTexture(glhckObjectGetMaterial(d->object));
   if(texture)
   {
     int textureWidth, textureHeight;
@@ -374,16 +380,22 @@ bool updateText(guihckContext* ctx, guihckElementId id, void* data)
 
   if(scm_to_bool(scm_list_p(c)) && scm_to_int32(scm_length(c)) == 3)
   {
-    glhckColorb color = *glhckMaterialGetDiffuse(glhckObjectGetMaterial(d->object));
+    glhckColor color = glhckMaterialGetDiffuse(glhckObjectGetMaterial(d->object));
     SCM r = scm_list_ref(c, scm_from_int8(0));
     SCM g = scm_list_ref(c, scm_from_int8(1));
     SCM b = scm_list_ref(c, scm_from_int8(2));
 
-    if(scm_is_integer(r)) color.r = scm_to_uint8(r);
-    if(scm_is_integer(g)) color.g = scm_to_uint8(g);
-    if(scm_is_integer(b)) color.b = scm_to_uint8(b);
+    unsigned char cr = (color & 0xFF000000) >> 24;
+    unsigned char cg = (color & 0x00FF0000) >> 16;
+    unsigned char cb = (color & 0x0000FF00) >> 8;
+    unsigned char ca = (color & 0x000000FF);
 
-    glhckMaterialDiffuse(glhckObjectGetMaterial(d->object), &color);
+    if(scm_to_bool(scm_integer_p(r))) cr = scm_to_uint8(r);
+    if(scm_to_bool(scm_integer_p(g))) cg = scm_to_uint8(g);
+    if(scm_to_bool(scm_integer_p(b))) cb = scm_to_uint8(b);
+
+    glhckColor newColor = (ca | (cb << 8) | (cg << 16) | (cr << 24));
+    glhckMaterialDiffuse(glhckObjectGetMaterial(d->object), newColor);
   }
 
   return false;
@@ -395,7 +407,7 @@ void renderText(guihckContext* ctx, guihckElementId id, void* data)
   (void) id;
 
   _guihckGlhckText* d = data;
-  glhckObjectRender(d->object);
+  glhckRenderObject(d->object);
 }
 
 unsigned int getFont(const char* fontPath)
@@ -438,9 +450,9 @@ void initImage(guihckContext* ctx, guihckElementId id, void* data)
 {
   _guihckGlhckImage* d = data;
   d->object = glhckPlaneNew(1.0, 1.0);
-  glhckMaterial* m = glhckMaterialNew(NULL);
+  glhckHandle m = glhckMaterialNew(0);
   glhckObjectMaterial(d->object, m);
-  glhckMaterialFree(m);
+  glhckHandleRelease(m);
   d->source = NULL;
   guihckElementAddParentPositionListeners(ctx, id);
   guihckElementAddUpdateProperty(ctx, id, "absolute-x");
@@ -457,7 +469,7 @@ void destroyImage(guihckContext* ctx, guihckElementId id, void* data)
   (void) id;
 
   _guihckGlhckImage* d = data;
-  glhckObjectFree(d->object);
+  glhckHandleRelease(d->object);
   if(d->source)
     free(d->source);
 }
@@ -473,9 +485,9 @@ bool updateImage(guihckContext* ctx, guihckElementId id, void* data)
     char* sourceStr = scm_to_utf8_string(source);
     if(!d->source || strcmp(sourceStr, d->source))
     {
-      glhckTexture* texture = glhckTextureNewFromFile(sourceStr, glhckImportDefaultImageParameters(), glhckTextureDefaultSpriteParameters());
+      glhckHandle texture = glhckTextureNewFromFile(sourceStr, NULL, glhckTextureDefaultSpriteParameters());
       glhckMaterialTexture(glhckObjectGetMaterial(d->object), texture);
-      glhckTextureFree(texture);
+      glhckHandleRelease(texture);
       free(d->source);
       d->source = sourceStr;
       int textureWidth, textureHeight;
@@ -524,16 +536,22 @@ bool updateImage(guihckContext* ctx, guihckElementId id, void* data)
   SCM c = guihckElementGetProperty(ctx, id, "color");
   if(scm_to_bool(scm_list_p(c)) && scm_to_int32(scm_length(c)) == 3)
   {
-    glhckColorb color = *glhckMaterialGetDiffuse(glhckObjectGetMaterial(d->object));
+    glhckColor color = glhckMaterialGetDiffuse(glhckObjectGetMaterial(d->object));
     SCM r = scm_list_ref(c, scm_from_int8(0));
     SCM g = scm_list_ref(c, scm_from_int8(1));
     SCM b = scm_list_ref(c, scm_from_int8(2));
 
-    if(scm_to_bool(scm_integer_p(r))) color.r = scm_to_uint8(r);
-    if(scm_to_bool(scm_integer_p(g))) color.g = scm_to_uint8(g);
-    if(scm_to_bool(scm_integer_p(b))) color.b = scm_to_uint8(b);
+    unsigned char cr = (color & 0xFF000000) >> 24;
+    unsigned char cg = (color & 0x00FF0000) >> 16;
+    unsigned char cb = (color & 0x0000FF00) >> 8;
+    unsigned char ca = (color & 0x000000FF);
 
-    glhckMaterialDiffuse(glhckObjectGetMaterial(d->object), &color);
+    if(scm_to_bool(scm_integer_p(r))) cr = scm_to_uint8(r);
+    if(scm_to_bool(scm_integer_p(g))) cg = scm_to_uint8(g);
+    if(scm_to_bool(scm_integer_p(b))) cb = scm_to_uint8(b);
+
+    glhckColor newColor = (ca | (cb << 8) | (cg << 16) | (cr << 24));
+    glhckMaterialDiffuse(glhckObjectGetMaterial(d->object), newColor);
   }
 
   return false;
@@ -545,7 +563,7 @@ void renderImage(guihckContext* ctx, guihckElementId id, void* data)
   (void) id;
 
   _guihckGlhckImage* d = data;
-  glhckObjectRender(d->object);
+  glhckRenderObject(d->object);
 }
 
 void guihckGlhckAddTextInputType(guihckContext* ctx)
