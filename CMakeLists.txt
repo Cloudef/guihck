@@ -9,6 +9,7 @@ OPTION(GUIHCK_BUILD_TESTS "Build guihck tests" ON)
 OPTION(GUIHCK_BUILD_EXAMPLES "Build guihck examples" OFF)
 
 set(GLHCK_BUILD_EXAMPLES OFF CACHE BOOL "Skip GLHCK examples")
+set(GLHCK_BUILD_TESTS OFF CACHE BOOL "Skip GLHCK tests")
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(guile-2.0 REQUIRED guile-2.0)
 

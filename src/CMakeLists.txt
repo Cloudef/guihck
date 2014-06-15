@@ -7,7 +7,7 @@ include_directories(
 
 file(GLOB SOURCES *.c)
 
-list(APPEND CMAKE_C_FLAGS "-Wall -Wextra -Wno-variadic-macros -Wno-long-long")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-variadic-macros -Wno-long-long")
 
 add_library(guihck
     ${SOURCES}

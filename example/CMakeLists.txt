@@ -14,7 +14,7 @@ include_directories(
   ${GLFW_SOURCE_DIR}/include
   ../modules/glhck/include)
 
-list(APPEND CMAKE_C_FLAGS "-Wall -Wextra -Wno-variadic-macros -Wno-long-long")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-variadic-macros -Wno-long-long")
 
 add_executable(guihck-cli-run cli-run.c)
 target_link_libraries(guihck-cli-run guihck)

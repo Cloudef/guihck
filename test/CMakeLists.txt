@@ -6,7 +6,7 @@ include_directories(
   ${guile-2.0_INCLUDE_DIRS}
 )
 
-list(APPEND CMAKE_C_FLAGS "-Wall -Wextra -Wno-variadic-macros -Wno-long-long")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wno-variadic-macros -Wno-long-long")
 
 add_executable(simple simple.c)
 target_link_libraries(simple guihck)
